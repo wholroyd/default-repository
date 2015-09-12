@@ -84,22 +84,22 @@ function do_docker_create {
       DOCKER_TEAM=$2
     else
       # This assumes the Docker team name is the same as the Git team/user name
-      echo Team name used from whoami...
+      echo Team name used from git...
       DOCKER_TEAM=`git remote show origin | grep "Fetch URL:" | sed "s#^.*/\(.*\)/\(.*\).git#\1#"`
     fi
   fi
 
   if [ -n "$DOCKER_REPO" ]
   then
-    echo Repository name used from environment DOCKER_REPO variable...
+    echo Repo name used from environment DOCKER_REPO variable...
   else
     if [ -n "$3" ]
     then
-      echo Repository name used from script parameter...
+      echo Repo name used from script parameter...
       DOCKER_REPO=$3
     else
       # This assumes the Docker repo name is the same as the Git repo name
-      echo Repository name used from git...
+      echo Repo name used from git...
       DOCKER_REPO=`git remote show origin | grep "Fetch URL:" | sed "s#^.*/\(.*\)/\(.*\).git#\2#"`
     fi
   fi
@@ -112,8 +112,13 @@ function do_docker_create {
   echo
   echo Starting image optimization/layer-merging...
 
+  # Tagged by 'latest'
   ID=$(docker run -d $DOCKER_TEAM/$DOCKER_REPO:build /bin/bash)
   docker export $ID | docker import - $DOCKER_TEAM/$DOCKER_REPO:latest
+
+  # Tagged by git commit
+  TAG=$(git rev-parse --short HEAD)
+  docker export $ID | docker import - $DOCKER_TEAM/$DOCKER_REPO:$TAG
 
   echo
   echo Starting image and container cleanup...
@@ -127,6 +132,7 @@ function do_docker_create {
 }
 
 function do_docker_deploy {
+
   echo
   echo Starting Docker image deployment...
 
