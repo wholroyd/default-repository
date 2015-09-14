@@ -26,18 +26,18 @@ $/
 ```
 ### Breakdown of directories
 
-- `build` - Build customizations (custom msbuild files/psake/fake/albacore/make/etc) scripts
-- `dist` - Build outputs go here. Doing a actions.cmd/actions.sh generates artifacts here (nupkgs, dlls, pdbs, etc.)
+- `build` - Build customizations (msbuild/psake/fake/albacore/make/etc) scripts
+- `dist` - Build outputs go here (nupkgs/dlls/pdbs/static site content/rpm/deb/etc)
 - `docs` - Documentation stuff, markdown files, help files etc.
-- `lib` - Things that can **NEVER** exist in a package
-- `samples` - Sample projects (optional)
-- `src` - Main projects (the product code)
-- `tests` - Test projects
+- `lib` - Things that do not or can **NEVER** exist in a package
+- `samples` - Sample projects
+- `src` - Main projects (required)
+- `tests` - Test projects (required)
 
 ### Breakdown of files
 
 - `actions.cmd` - Bootstrap the build for Windows (optional)
-- `actions.sh` - Bootstrap the build for \*nix
+- `actions.sh` - Bootstrap the build for \*nix (required)
 
 Some environment variables to set up first...
 
@@ -65,8 +65,8 @@ Usage: ./actions.sh [OPTION] (ARGS)
   create            ...a Docker image
   deploy            ...a Docker image
 
-  universe          ...in order the options: build, test, docker, deploy
-  galaxy            ...in order the options: build, test, docker
+  universe          ...in order the options: build, test, create, deploy
+  galaxy            ...in order the options: build, test, create
 
 The following values are required for the given commands:
 
