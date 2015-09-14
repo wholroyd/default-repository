@@ -47,6 +47,8 @@ $DOCKER_TEAM
 #DOCKER_REPO
 
 # When doing 'deploy'
+$DOCKER_TEAM
+#DOCKER_REPO
 $DOCKER_USERNAME
 $DOCKER_PASSWORD
 $DOCKER_EMAIL
@@ -63,6 +65,19 @@ Usage: ./actions.sh [OPTION] (ARGS)
   create            ...a Docker image
   deploy            ...a Docker image
 
-  universe          ...in order the options: compile, test, docker, deploy
-  galaxy            ...in order the options: compile, test, docker
+  universe          ...in order the options: build, test, docker, deploy
+  galaxy            ...in order the options: build, test, docker
+
+The following values are required for the given commands:
+
+  ./actions.sh create [team] [repo]                                 ...or set:
+    \$DOCKER_TEAM
+    \$DOCKER_REPO
+
+  ./actions.sh deploy [team] [repo] [username] [password] [email]   ...or set:
+    \$DOCKER_TEAM
+    \$DOCKER_REPO
+    \$DOCKER_USERNAME
+    \$DOCKER_PASSWORD
+    \$DOCKER_EMAIL
 ```

@@ -203,5 +203,18 @@ galaxy)
   printf "  universe          ...in order the options: build, test, create, deploy\n"
   printf "  galaxy            ...in order the options: build, test, create\n"
   printf "\n"
+  printf "The following values are required for the given commands:\n"
+  printf "\n"
+  printf "  $0 create [team] [repo]                                 ...or set:\n"
+  printf "    \$DOCKER_TEAM\n"
+  printf "    \$DOCKER_REPO\n"
+  printf "\n"
+  printf "  $0 deploy [team] [repo] [username] [password] [email]   ...or set:\n"
+  printf "    \$DOCKER_TEAM\n"
+  printf "    \$DOCKER_REPO\n"
+  printf "    \$DOCKER_USERNAME\n"
+  printf "    \$DOCKER_PASSWORD\n"
+  printf "    \$DOCKER_EMAIL\n"
+  printf "\n"
   ;;
 esac
