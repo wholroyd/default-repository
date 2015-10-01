@@ -2,63 +2,158 @@
 
 function do_build {
 
-   current=`pwd`
+  local project=`pwd`
+  local failed=false
 
-   printf "\n${header}Starting package restoration...${nc}"
+  printf "\n${header}Starting package restoration & compilation...${nc}\n\n"
 
-   # restore the nuget packages
-   for dir in $(find -name 'project.json' -printf '%h\n' | sort -u)
-   do
-      cd $current
-      cd $dir
-      echo -Restoring for DNX in $(pwd)
-      dnx . restore
-   done
-   cd $current
+  # restore the nuget packages
+  for location in $(find -name 'project.json' -printf '%h\n' | sort -u)
+  do
+    cd $project
+    cd $location
+    echo -Restoring for DNX in ${location}
+    MONO_THREADS_PER_CPU=2000
 
-   # restore the npm packages
-   for dir in $(find -name 'package.json' -printf '%h\n' | sort -u)
-   do
-      cd $current
-      cd $dir
-      echo -Restoring with NPM in $(pwd)
-      npm install
-      npm install -g bower
-      npm install -g gulp
-   done
-   cd $current
+    dnu restore
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
 
-   # restore the bower packages
-   for dir in $(find -name '.bowerrc' -printf '%h\n' | sort -u)
-   do
-      cd $current
-      cd $dir
-      echo -Restoring with Bower in $(pwd)
-      bower install
-   done
-   cd $current
+    MONO_THREADS_PER_CPU=100
+  done
+  cd $project
 
-   printf "\n${header}Building source...${nc}\n"
+  # restore the npm packages
+  for location in $(find -name 'package.json' -printf '%h\n' | sort -u | grep -v node_modules)
+  do
+    cd $project
+    cd $location
+    echo -Restoring with NPM in ${location}
 
-    # build using gulp
-   for dir in $(find -name 'gulpfile.js' -printf '%h\n' | sort -u)
-   do
-      cd $current
-      cd $dir
-      echo -Building with Gulp in $(pwd)
-      gulp default
-   done
-   cd $current
+    # ensure we have a user writeable directory for NPM global installations
+    if [[ ! -a ~/.npm-global ]]; then
+      mkdir ~/.npm-global 
+    fi
 
-   printf "\n${green}Completed build phase${nc}\n"
+    # ensure we have updated NPM and PATH to use the user writeable directory    
+    npm config set prefix '~/.npm-global'
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+
+    export PATH="~/.npm-global/bin:${PATH}"
+
+    npm install
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+
+    npm install -g typescript
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+
+    npm install -g bower
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+
+    npm install -g gulp
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+  done
+  cd $project
+
+  # restore the typescript packages
+  for location in $(find -name 'tsd.json' -printf '%h\n' | sort -u)
+  do
+    cd $project
+    cd $dir
+    echo -Restoring for TypeScript in ${location}
+
+    tsd restore
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+  done
+  cd $project
+
+  # restore the bower packages
+  for location in $(find -name '.bowerrc' -printf '%h\n' | sort -u)
+  do
+    cd $project
+    cd $location
+    echo -Restoring with Bower in ${location}
+
+    bower install
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+  done
+  cd $project
+
+  printf "\n${header}Building source...${nc}\n"
+
+  # build using gulp
+  for location in $(find -name 'gulpfile.js' -printf '%h\n' | sort -u)
+  do
+    cd $project
+    cd $location
+    echo -Building with Gulp in ${location}
+
+    gulp default
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+  done
+  cd $project
+
+  if [ "$failed" = true ] ; then
+    printf "\n${red}Failed build phase${nc}\n\n"
+    exit 1;
+  else
+    printf "\n${green}Completed build phase${nc}\n\n"
+  fi
 }
 
 function do_test {
-   printf Test
 
+  local project=`pwd`
+  local failed=false
+
+  printf "\n${header}Starting testing...${nc}\n\n"
+
+  # test the .NET code
+  for location in $(find -name 'project.json' -printf '%h\n' | sort -u | grep ./tests)
+  do
+    cd $project
+    cd $location
+    echo -Testing for DNX in ${location}
+
+    dnx test
+    if [[ $? != 0 ]]; then
+      failed=true;
+    fi
+  done
+  cd $project
+
+  # TODO: test the JS code
+
+  # TODO: test the TS code
+
+  if [ "$failed" = true ]; then
+    printf "\n${red}Failed testing phase${nc}\n\n"
+    exit 1;
+  else
+    printf "\n${green}Completed testing phase${nc}\n\n"
+  fi
 }
 
 function do_create {
+
+  local failed=false
 
   printf "\n${header}Starting Docker image creation...${nc}\n"
 
@@ -71,25 +166,48 @@ function do_create {
 
   printf "\n${header}Starting image creation...${nc}\n"
   docker build -t $DOCKER_TEAM/$DOCKER_REPO:build .
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
 
   printf "\n${header}Starting image optimization/layer-merging...${nc}\n"
 
   # Create image tagged 'latest'
   ID=$(docker run -d $DOCKER_TEAM/$DOCKER_REPO:build /bin/bash)
   docker export $ID | docker import - $DOCKER_TEAM/$DOCKER_REPO:latest
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
 
   # Create image tagged by git commit id
   TAG=$(git rev-parse --short HEAD)
   docker export $ID | docker import - $DOCKER_TEAM/$DOCKER_REPO:$TAG
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
 
   printf "\n${header}Starting image and container cleanup...${nc}"
   docker rm $(docker ps -l -q)
-  docker rmi -f `docker images $DOCKER_TEAM/$DOCKER_REPO | grep "build" | awk 'BEGIN{FS=OFS=" "}{print $3}'`
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
 
-  printf "\n${green}Completed creation phase${nc}\n\n"
+  docker rmi -f `docker images $DOCKER_TEAM/$DOCKER_REPO | grep "build" | awk 'BEGIN{FS=OFS=" "}{print $3}'`
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
+
+  if [ "$failed" = true ] ; then
+    printf "\n${red}Failed creation phase${nc}\n\n"
+    exit 1;
+  else
+    printf "\n${green}Completed creation phase${nc}\n\n"
+  fi
 }
 
-function do_deploy {
+function do_publish {
+
+  local failed=false
 
   printf "\n${header}Starting Docker image deployment...${nc}"
 
@@ -105,33 +223,42 @@ function do_deploy {
 
   printf "\nRegistry authentication..."
   docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD -e $DOCKER_EMAIL
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
 
-  printf "\nRegistry upload..."
-  docker push -f $DOCKER_TEAM/$DOCKER_REPO:latest
+  printf "\nRegistry upload (latest)..."
+  docker push $DOCKER_TEAM/$DOCKER_REPO:latest
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
 
-  printf "\n${green}Completed deploy phase${nc}\n\n"
+  printf "\nRegistry upload (tagged)..."
+  TAG=$(git rev-parse --short HEAD)
+  docker push $DOCKER_TEAM/$DOCKER_REPO:$TAG
+  if [[ $? != 0 ]]; then
+    failed=true;
+  fi
+
+  if "$failed" = true; then
+    printf "\n${red}Failed deploy phase${nc}\n\n"
+    exit 1;
+  else
+    printf "\n${green}Completed deploy phase${nc}\n\n"
+  fi
 }
 
-function do_universe {
-  do_build
-  do_test
-  do_create
-  do_deploy
-}
-
-function do_galaxy {
-  do_build
-  do_test
-  do_create
+function do_deploy {
+  echo "This has not been implemented"
 }
 
 function verify_repository {
   if [ -n "$DOCKER_TEAM" ] && [ -n "$DOCKER_REPO" ]
-  then
+    then
     echo -Using environment variables
   else
     if [ -n "$2" ] && [ -n "$3" ]
-    then
+      then
       echo -Using script parameters
       DOCKER_TEAM=$2
       DOCKER_REPO=$3
@@ -145,11 +272,11 @@ function verify_repository {
 
 function verify_authentication {
   if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ] && [ -n "$DOCKER_EMAIL" ]
-  then
+    then
     echo -Using environment variables
   else
     if [ -n "$4" ] && [ -n "$5" ] && [ -n "$6" ]
-    then
+      then
       echo -Using script parameters
       DOCKER_USERNAME=$4
       DOCKER_PASSWORD=$5
@@ -172,36 +299,31 @@ nc='\033[0m' # No Color
 
 # Determine what needs to be ran
 case $1 in
-build)
+  build)
   do_build
   ;;
-test)
+  test)
   do_test
   ;;
-create)
+  create)
   do_create
   ;;
-deploy)
+  publish)
+  do_publish
+  ;;
+  deploy)
   do_deploy
   ;;
-universe)
-  do_universe
-  ;;
-galaxy)
-  do_galaxy
-  ;;
-*)
+  *)
   printf "\n"
   printf "Usage: $0 [OPTION]\n"
   printf "  OPTION            Performs...\n"
   printf "  ----------------  ----------------------------------------------------------\n"
-  printf "  build             ...a compilation, if required\n"
+  printf "  build             ...package restore and a compilation\n"
   printf "  test              ...all tests in order of unit, integration, and functional\n"
   printf "  create            ...a Docker image\n"
-  printf "  deploy            ...a Docker image\n"
-  printf "\n"
-  printf "  universe          ...in order the options: build, test, create, deploy\n"
-  printf "  galaxy            ...in order the options: build, test, create\n"
+  printf "  publish           ...a Docker image\n"
+  printf "  deploy            ...to service fabric\n"
   printf "\n"
   printf "The following values are required for the given commands:\n"
   printf "\n"
@@ -209,7 +331,7 @@ galaxy)
   printf "    \$DOCKER_TEAM\n"
   printf "    \$DOCKER_REPO\n"
   printf "\n"
-  printf "  $0 deploy [team] [repo] [username] [password] [email]   ...or set:\n"
+  printf "  $0 publish [team] [repo] [username] [password] [email]   ...or set:\n"
   printf "    \$DOCKER_TEAM\n"
   printf "    \$DOCKER_REPO\n"
   printf "    \$DOCKER_USERNAME\n"

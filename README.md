@@ -46,7 +46,7 @@ Some environment variables to set up first...
 $DOCKER_TEAM
 #DOCKER_REPO
 
-# When doing 'deploy'
+# When doing 'publish'
 $DOCKER_TEAM
 #DOCKER_REPO
 $DOCKER_USERNAME
@@ -60,13 +60,11 @@ Using the actions.sh/actions.cmd script...
 Usage: ./actions.sh [OPTION] (ARGS)
   OPTION            Performs...
   ----------------  ----------------------------------------------------------
-  build             ...a compilation, if required
+  build             ...package restoration and a compilation
   test              ...all tests in order of unit, integration, and functional
   create            ...a Docker image
-  deploy            ...a Docker image
-
-  universe          ...in order the options: build, test, create, deploy
-  galaxy            ...in order the options: build, test, create
+  publish           ...a Docker image
+  deploy            ...to service fabric
 
 The following values are required for the given commands:
 
